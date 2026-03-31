@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.auth import verify_api_key
-from app.routes import health, password, sessions
+from app.routes import health, password, sessions, images
 from app.database import init_db
 
 @asynccontextmanager
@@ -44,5 +44,11 @@ app.include_router(
 app.include_router(
     sessions.router,
     tags=["Sessions"],
+    dependencies=[Depends(verify_api_key)]
+)
+
+app.include_router(
+    images.router,
+    tags=["Images"],
     dependencies=[Depends(verify_api_key)]
 )
