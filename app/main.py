@@ -25,6 +25,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://jonasludorf.dev",
+        "https://j0nes-l.github.io",
         "http://localhost:4321",
         "http://localhost:4322",
     ],
