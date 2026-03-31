@@ -3,11 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.auth import verify_api_key
-from app.routes import health, password
+from app.routes import health, password, sessions
+from app.database import init_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("KE-AR API starting...")
+    await init_db()
+    print("Database initialized")
     yield
     print("KE-AR API shutting down...")
 
@@ -20,7 +23,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://jonasludorf.dev",
+        "http://localhost:4321",
+        "http://localhost:4322",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,5 +38,11 @@ app.include_router(health.router, tags=["Health"])
 app.include_router(
     password.router,
     tags=["Password"],
+    dependencies=[Depends(verify_api_key)]
+)
+
+app.include_router(
+    sessions.router,
+    tags=["Sessions"],
     dependencies=[Depends(verify_api_key)]
 )

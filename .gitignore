@@ -32,6 +32,8 @@ build/
 # Database
 *.db
 *.sqlite3
+files/
+data/
 
 # OS files
 .DS_Store
