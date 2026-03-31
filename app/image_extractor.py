@@ -1,3 +1,4 @@
+import os
 import gzip
 import json
 import struct
@@ -8,6 +9,7 @@ import asyncio
 
 import numpy as np
 from PIL import Image
+from .database import delete_bin_file_entry
 
 
 class ExtractionProgress:
@@ -200,6 +202,13 @@ async def extract_images(session_id: str, files_dir: Path) -> AsyncIterator[dict
                 yield progress.to_dict()
             await asyncio.sleep(0)
     
+    if bin_path.exists():
+        try:
+            os.remove(bin_path)
+            await delete_bin_file_entry(session_id, bin_filename)
+        except Exception as e:
+            progress.errors.append(f"Failed to delete bin file: {str(e)}")
+
     progress.status = "completed"
     yield progress.to_dict()
 
