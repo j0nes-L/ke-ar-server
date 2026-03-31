@@ -31,12 +31,34 @@ def extract_session_id(content: bytes, filename: str) -> str | None:
         return None
     
     try:
-        data = json.loads(content.decode("utf-8"))
-        session_id = data.get("sessionId")
-        if session_id and UUID_PATTERN.match(session_id):
+        if content.startswith(b'\xef\xbb\xbf'):
+            content = content[3:]
+        
+        try:
+            text = content.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            text = content.decode("utf-8")
+        
+        data = json.loads(text)
+        
+        possible_fields = ["sessionId", "session_id", "SessionId", "SESSION_ID", "id"]
+        session_id = None
+        
+        for field in possible_fields:
+            session_id = data.get(field)
+            if session_id:
+                break
+
+        if not session_id and isinstance(data.get("session"), dict):
+            session_id = data["session"].get("id") or data["session"].get("sessionId")
+        
+        if session_id and isinstance(session_id, str) and UUID_PATTERN.match(session_id):
             return session_id
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        pass
+        
+        print(f"[DEBUG] {filename}: sessionId field value = {repr(session_id)}")
+        
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        print(f"[DEBUG] {filename}: Parse error: {e}")
     
     return None
 
@@ -75,14 +97,33 @@ async def upload_session(files: List[UploadFile] = File(...)):
         content = await file.read()
         file_contents[file.filename] = content
         
-        # Try to extract session ID from JSON files
         if file.filename.endswith(".json"):
             extracted_id = extract_session_id(content, file.filename)
             
             if extracted_id is None:
+                try:
+                    text = content.decode("utf-8-sig") if content.startswith(b'\xef\xbb\xbf') else content.decode("utf-8")
+                    data = json.loads(text)
+                    found_keys = list(data.keys())[:10]
+     
+                    possible_fields = ["sessionId", "session_id", "SessionId", "SESSION_ID", "id"]
+                    found_values = {k: str(data.get(k))[:50] for k in possible_fields if k in data}
+                    
+                    sid = data.get("sessionId")
+                    uuid_valid = bool(sid and isinstance(sid, str) and UUID_PATTERN.match(sid))
+                    
+                    detail = (
+                        f"Could not extract valid sessionId (UUID) from {file.filename}. "
+                        f"Found keys: {found_keys}. "
+                        f"ID field values: {found_values if found_values else 'none found'}. "
+                        f"sessionId exists: {sid is not None}, UUID valid: {uuid_valid}, "
+                        f"First 100 bytes: {content[:100]!r}"
+                    )
+                except Exception as e:
+                    detail = f"Could not extract valid sessionId (UUID) from {file.filename}: {str(e)}"
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Could not extract valid sessionId (UUID) from {file.filename}"
+                    detail=detail
                 )
             
             if session_id is None:
@@ -92,8 +133,7 @@ async def upload_session(files: List[UploadFile] = File(...)):
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Mismatched sessionId in {file.filename}. Expected {session_id}, got {extracted_id}"
                 )
-            
-            # Extract metadata from visual_data.json
+                
             if file.filename == "visual_data.json":
                 try:
                     data = json.loads(content.decode("utf-8"))
