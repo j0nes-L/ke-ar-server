@@ -166,3 +166,38 @@ class SessionMetadataResponse(BaseModel):
     trackingInfo: Optional[TrackingInfo] = None
     totalVisualFrames: int = 0
     totalTrackingFrames: int = 0
+
+
+class TranscriptSegment(BaseModel):
+    start: float
+    end: float
+    text: str
+
+
+class TranscriptionCheckResponse(BaseModel):
+    session_id: str
+    audio_file_exists: bool
+    audio_filename: Optional[str] = None
+    transcript_exists: bool
+    transcript_filename: Optional[str] = None
+
+
+class TranscriptionStartResponse(BaseModel):
+    session_id: str
+    status: str
+    message: str
+
+
+class TranscriptionProgressResponse(BaseModel):
+    status: str
+    progress_percent: float
+    current_step: str
+    error: Optional[str] = None
+
+
+class TranscriptionResultResponse(BaseModel):
+    session_id: str
+    language: str
+    duration_seconds: float
+    segments: List[TranscriptSegment]
+    full_text: str
