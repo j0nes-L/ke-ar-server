@@ -14,7 +14,6 @@ class HealthResponse(BaseModel):
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Public health check endpoint."""
     return HealthResponse(
         status="healthy",
         service="ke-ar",

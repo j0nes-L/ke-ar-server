@@ -1,9 +1,3 @@
-"""
-Audio Transcription Module using Modal Cloud + Whisper.
-Provides transcription with timestamps for session audio files.
-The actual transcription runs on Modal's GPU infrastructure.
-"""
-
 import json
 import asyncio
 from pathlib import Path
@@ -18,7 +12,6 @@ _executor = ThreadPoolExecutor(max_workers=2)
 
 
 def check_audio_file_exists(session_id: str, files_dir: Path) -> dict:
-    """Check if audio file exists for a session."""
     session_dir = files_dir / session_id
     
     result = {
@@ -46,15 +39,10 @@ def check_audio_file_exists(session_id: str, files_dir: Path) -> dict:
 
 
 def get_transcription_progress(session_id: str) -> Optional[dict]:
-    """Get progress of ongoing transcription."""
     return transcription_progress.get(session_id)
 
 
 def _run_modal_transcription(audio_path: str, model_name: str = "base") -> dict:
-    """
-    Run Whisper transcription via Modal cloud (for use in thread pool).
-    Returns the transcription result with segments.
-    """
     transcribe_fn = modal.Function.from_name("ke-ar", "transcribe_audio_modal")
     
     with open(audio_path, "rb") as f:
@@ -70,12 +58,6 @@ async def transcribe_audio(
     files_dir: Path,
     model_name: str = "base"
 ) -> AsyncGenerator[dict, None]:
-    """
-    Transcribe audio file for a session with progress updates.
-    Yields progress dictionaries and final result.
-    
-    Model options: tiny, base, small, medium, large
-    """
     session_dir = files_dir / session_id
     
     transcription_progress[session_id] = {
@@ -115,15 +97,31 @@ async def transcribe_audio(
             "error": None
         }
         yield transcription_progress[session_id].copy()
-        
+
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
+        modal_task = loop.run_in_executor(
             _executor,
             _run_modal_transcription,
             str(audio_path),
-            model_name
+            model_name,
         )
-        
+
+        pct = 20.0
+        while True:
+            done, _ = await asyncio.wait({asyncio.ensure_future(modal_task)}, timeout=10)
+            if done:
+                break
+            pct = min(pct + 3.0, 75.0)
+            transcription_progress[session_id] = {
+                "status": "processing",
+                "progress_percent": round(pct, 1),
+                "current_step": "Transcribing audio in cloud...",
+                "error": None,
+            }
+            yield transcription_progress[session_id].copy()
+
+        result = await modal_task
+
         transcription_progress[session_id] = {
             "status": "processing",
             "progress_percent": 80.0,
@@ -132,7 +130,6 @@ async def transcribe_audio(
         }
         yield transcription_progress[session_id].copy()
         
-        # Modal returns already processed segments
         segments = result.get("segments", [])
 
         transcript_data = {
@@ -172,7 +169,6 @@ async def transcribe_audio(
 
 
 def get_transcript(session_id: str, files_dir: Path) -> Optional[dict]:
-    """Load existing transcript from JSON file."""
     transcript_path = files_dir / session_id / "transcript.json"
     
     if not transcript_path.exists():

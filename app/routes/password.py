@@ -19,10 +19,6 @@ class PasswordVerifyResponse(BaseModel):
 
 @router.post("/verify-password", response_model=PasswordVerifyResponse)
 async def verify_password(request: PasswordVerifyRequest):
-    """
-    Verify if the provided password matches the master password.
-    Requires X-API-Key header.
-    """
     settings = get_settings()
     
     is_valid = hmac.compare_digest(

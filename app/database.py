@@ -4,7 +4,6 @@ from pathlib import Path
 DATABASE_PATH = Path("/app/data/sessions.db")
 
 async def init_db():
-    """Initialize the SQLite database."""
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     
     async with aiosqlite.connect(DATABASE_PATH) as db:
@@ -33,14 +32,12 @@ async def init_db():
         await db.commit()
 
 async def get_db():
-    """Get database connection."""
     async with aiosqlite.connect(DATABASE_PATH) as db:
         db.row_factory = aiosqlite.Row
         yield db
 
 
 async def delete_bin_file_entry(session_id: str, bin_filename: str):
-    """Delete a .bin file entry from session_files and update session totals."""
     async with aiosqlite.connect(DATABASE_PATH) as db:
         cursor = await db.execute(
             "SELECT size_bytes FROM session_files WHERE session_id = ? AND filename = ?",

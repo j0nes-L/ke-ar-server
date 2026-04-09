@@ -1,8 +1,3 @@
-"""
-Transcription API Routes.
-Provides endpoints for audio transcription with progress tracking.
-"""
-
 import json
 import asyncio
 from pathlib import Path
@@ -29,9 +24,6 @@ FILES_DIR = Path("/app/files")
 
 @router.get("/{session_id}/check", response_model=TranscriptionCheckResponse)
 async def check_audio(session_id: str):
-    """
-    Check if audio file exists for a session and if transcript already exists.
-    """
     result = check_audio_file_exists(session_id, FILES_DIR)
     return TranscriptionCheckResponse(**result)
 
@@ -42,14 +34,6 @@ async def start_transcription(
     background: bool = False,
     model: str = "base"
 ):
-    """
-    Start audio transcription for a session.
-    
-    - **model**: Whisper model to use (tiny, base, small, medium, large)
-    - **background**: If true, run in background and return immediately
-    
-    The transcript will be saved as 'transcript.json' in the session folder.
-    """
     valid_models = ["tiny", "base", "small", "medium", "large"]
     if model not in valid_models:
         raise HTTPException(
@@ -92,11 +76,6 @@ async def start_transcription(
 
 @router.get("/{session_id}/transcribe/stream")
 async def stream_transcription(session_id: str, model: str = "base"):
-    """
-    Start audio transcription with SSE progress streaming.
-    
-    Returns Server-Sent Events with progress updates.
-    """
     valid_models = ["tiny", "base", "small", "medium", "large"]
     if model not in valid_models:
         raise HTTPException(
@@ -125,9 +104,6 @@ async def stream_transcription(session_id: str, model: str = "base"):
 
 @router.get("/{session_id}/progress", response_model=TranscriptionProgressResponse)
 async def get_progress(session_id: str):
-    """
-    Get progress of ongoing transcription.
-    """
     progress = get_transcription_progress(session_id)
     if progress is None:
         raise HTTPException(
@@ -141,11 +117,6 @@ async def get_progress(session_id: str):
 
 @router.get("/{session_id}/result", response_model=TranscriptionResultResponse)
 async def get_transcription_result(session_id: str):
-    """
-    Get the saved transcript for a session.
-    
-    Returns the transcript with all segments and timestamps.
-    """
     transcript = get_transcript(session_id, FILES_DIR)
     if transcript is None:
         raise HTTPException(

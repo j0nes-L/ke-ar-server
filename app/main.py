@@ -8,11 +8,8 @@ from app.database import init_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("KE-AR API starting...")
     await init_db()
-    print("Database initialized")
     yield
-    print("KE-AR API shutting down...")
 
 app = FastAPI(
     title="KE-AR API",
