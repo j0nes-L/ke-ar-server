@@ -3,6 +3,7 @@ import gzip
 import json
 import struct
 import re
+from io import BytesIO
 from pathlib import Path
 from typing import AsyncIterator, Optional
 import asyncio
@@ -51,6 +52,14 @@ def process_color_frame(raw_color: bytes, width: int, height: int) -> Optional[I
         img_color = Image.frombytes("RGBA", (width, height), raw_color)
         img_color = img_color.transpose(Image.FLIP_TOP_BOTTOM)
         return img_color
+    except Exception:
+        return None
+
+
+def process_jpeg_frame(jpeg_data: bytes) -> Optional[Image.Image]:
+    try:
+        img = Image.open(BytesIO(jpeg_data))
+        return img.convert("RGB")
     except Exception:
         return None
 
@@ -147,6 +156,8 @@ async def extract_images(session_id: str, files_dir: Path) -> AsyncIterator[dict
     c_height = info.get("imageHeight", 960)
     d_width = info.get("depthWidth", 320)
     d_height = info.get("depthHeight", 320)
+    color_format = info.get("colorFormat", "RGBA")
+    depth_format = info.get("depthFormat", "Float32_GZip")
     
     frames = visual_data.get("frames", [])
     progress.total_frames = len(frames)
@@ -172,22 +183,30 @@ async def extract_images(session_id: str, files_dir: Path) -> AsyncIterator[dict
             if frame.get("colorSize", 0) > 0:
                 try:
                     f_bin.seek(frame["colorOffset"])
-                    comp_color = f_bin.read(frame["colorSize"])
-                    raw_color = decompress_gzip(comp_color)
-                    if raw_color:
-                        img_color = process_color_frame(raw_color, c_width, c_height)
-                        if img_color:
-                            color_out_path = color_dir / f"frame_{f_idx:04d}.png"
-                            img_color.save(str(color_out_path), format="PNG")
-                            progress.color_extracted += 1
+                    color_data = f_bin.read(frame["colorSize"])
+                    img_color = None
+                    if color_format == "JPEG":
+                        img_color = process_jpeg_frame(color_data)
+                    else:
+                        raw_color = decompress_gzip(color_data)
+                        if raw_color:
+                            img_color = process_color_frame(raw_color, c_width, c_height)
+                    if img_color:
+                        color_out_path = color_dir / f"frame_{f_idx:04d}.png"
+                        img_color.save(str(color_out_path), format="PNG")
+                        progress.color_extracted += 1
                 except Exception as e:
                     progress.errors.append(f"Frame {f_idx} color error: {str(e)}")
 
             if frame.get("depthSize", 0) > 0:
                 try:
                     f_bin.seek(frame["depthOffset"])
-                    comp_depth = f_bin.read(frame["depthSize"])
-                    raw_depth = decompress_gzip(comp_depth)
+                    depth_data = f_bin.read(frame["depthSize"])
+                    raw_depth = None
+                    if depth_format == "Float32_Raw":
+                        raw_depth = depth_data
+                    else:
+                        raw_depth = decompress_gzip(depth_data)
                     if raw_depth:
                         img_depth = process_depth_frame(raw_depth, d_width, d_height)
                         if img_depth:
